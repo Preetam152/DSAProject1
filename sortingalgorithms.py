@@ -3,6 +3,8 @@ import time
 import matplotlib.pyplot as plt
 import heapq
 import sys
+import pandas as pd
+
 sys.setrecursionlimit(1000000)
 
 def insertion_sort(arr):
@@ -39,12 +41,11 @@ def merge(left, right):
     return result
 
 def heap_sort(array):
-    heap = array[:]
+    heap = array[:] 
     heapq.heapify(heap)
     return [heapq.heappop(heap) for _ in range(len(heap))]
 
-def quick_sort(arr):
-    a = arr[:]
+def quick_sort(a):
     s = [(0, len(a)-1)]
     while s:
         low, high = s.pop()
@@ -65,8 +66,7 @@ def quick_sort(arr):
                 s.append((low, p-1))
     return a
 
-def modified_quick_sort(arr, cutoff=10):
-    arr_copy = arr[:]
+def modified_quick_sort(a, cutoff=10):
     def insertion_sort_subarray(a, low, high):
         for i in range(low+1, high+1):
             key = a[i]
@@ -75,7 +75,7 @@ def modified_quick_sort(arr, cutoff=10):
                 a[j+1] = a[j]
                 j-=1
             a[j+1] = key
-    
+
     def median_of_three(a, low, high):
         mid = (low+high)//2
         if a[low] <= a[mid]:
@@ -92,22 +92,22 @@ def modified_quick_sort(arr, cutoff=10):
                 return high
             else:
                 return mid
-    
-    stack = [(0, len(arr_copy)-1)]
+
+    stack = [(0, len(a)-1)]
     while stack:
         low, high = stack.pop()
         if high-low+1 <= cutoff:
-            insertion_sort_subarray(arr_copy, low, high)
+            insertion_sort_subarray(a, low, high)
         elif low < high:
-            pivot_index = median_of_three(arr_copy, low, high)
-            arr_copy[pivot_index], arr_copy[high] = arr_copy[high], arr_copy[pivot_index]
-            pivot = arr_copy[high]
+            pivot_index = median_of_three(a, low, high)
+            a[pivot_index], a[high] = a[high], a[pivot_index]
+            pivot = a[high]
             i = low - 1
             for j in range(low, high):
-                if arr_copy[j] <= pivot:
+                if a[j] <= pivot:
                     i +=1
-                    arr_copy[i], arr_copy[j] = arr_copy[j], arr_copy[i]
-            arr_copy[i+1], arr_copy[high] = arr_copy[high], arr_copy[i+1]
+                    a[i], a[j] = a[j], a[i]
+            a[i+1], a[high] = a[high], a[i+1]
             p = i+1
             if p-1-low > high-(p+1):
                 stack.append((low, p-1))
@@ -115,16 +115,17 @@ def modified_quick_sort(arr, cutoff=10):
             else:
                 stack.append((p+1, high))
                 stack.append((low, p-1))
-    return arr_copy
+    return a
 
 def time_algorithm(func, arr):
-    arr_copy = arr[:]
+    arr_copy = arr[:] 
     start = time.perf_counter()
     func(arr_copy)
     return time.perf_counter() - start
 
+# --- configuration ---
 sizes = [1000, 2000, 3000, 4000, 5000, 10000, 20000, 40000, 50000, 60000, 80000, 90000, 100000]
-runs = 5
+runs = 3
 algorithms = {
     'Insertion': insertion_sort,
     'Merge': merge_sort,
@@ -132,32 +133,57 @@ algorithms = {
     'Quick': quick_sort,
     'Modified Quick': modified_quick_sort
 }
-results_random = {name: [] for name in algorithms}
-
+results_unsorted = {name: [] for name in algorithms}
+results_sorted = {name: [] for name in algorithms}
+results_reversed = {name: [] for name in algorithms}
+all_rows = []
 
 for n in sizes:
-    arr_random = [random.randint(0, 10**6) for _ in range(n)]
-    
+    arr_unsorted = [random.randint(0, 10**6) for _ in range(n)]
+    arr_sorted = sorted(arr_unsorted)
+    arr_reversed = sorted(arr_unsorted, reverse=True)
+
     for name, func in algorithms.items():
         if n > 10000 and name == 'Insertion':
-            results_random[name].append(float('nan'))
-            continue  
-        elapsed_random = 0
-        
-        for _ in range(runs):
-            elapsed_random += time_algorithm(func, arr_random)
-        
-        results_random[name].append(elapsed_random / runs)
+            unsorted_time = sorted_time = reversed_time = float('nan')
+        else:
+            f = func
+            eu = es = er = 0.0
+            a_u, a_s, a_r = arr_unsorted, arr_sorted, arr_reversed
+            for _ in range(runs):
+                eu += time_algorithm(f, a_u)
+                es += time_algorithm(f, a_s)
+                er += time_algorithm(f, a_r)
+            unsorted_time = eu / runs
+            sorted_time = es / runs
+            reversed_time = er / runs
+
+        results_unsorted[name].append(unsorted_time)
+        results_sorted[name].append(sorted_time)
+        results_reversed[name].append(reversed_time)
+
+        all_rows.append({
+            'Size': n,
+            'Algorithm': name + ' Sort',
+            'Unsorted Time(s)': unsorted_time,
+            'Sorted Time(s)': sorted_time,
+            'Reversed Time(s)': reversed_time
+        })
     print(f"Completed n={n}")
+
+print("\n All sizes completed.\n")
+df = pd.DataFrame(all_rows)
+print(df.to_string(index=False))
 
 plt.figure(figsize=(12, 7))
 markers = ['o', 's', '^', 'D', '*']
-for i, (name, times) in enumerate(results_random.items()):
-    plt.plot(sizes[:len(times)], times, marker=markers[i], label=f'{name} - Random')
+for i, (name, times) in enumerate(results_unsorted.items()):
+    plt.plot(sizes[:len(times)], times, marker=markers[i], label=f'{name} - Unsorted')
 plt.ylabel('Average Execution Time (s)')
-plt.title('Sorting Algorithm Performance Comparison')
+plt.xlabel('Input Size')
+plt.title('Sorting Algorithm Performance Comparison (Unsorted Input)')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.savefig("sorting_algorithms_performance.png")
-print("sorting_algorithms_performance.png")
+print("\n sorting_algorithms_performance.png")
